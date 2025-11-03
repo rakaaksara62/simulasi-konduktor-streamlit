@@ -102,3 +102,14 @@ st.markdown(f"""
 - Penurunan **rugi daya** sebesar **{improvement_p:.1f}%**
 - Peningkatan efisiensi distribusi dan kualitas tegangan pada ujung saluran
 """)
+
+# ----------------------------------------------------------------
+# Footer: identitas kelompok
+# ----------------------------------------------------------------
+st.markdown("""
+---
+### 👥 **By Kelompok Distribusi 20kV**
+- **Raka Khairan Taqi Aksara**  
+- **Kaisya Ruby Edya**  
+- **Nita Nirmala**
+""")
