@@ -164,12 +164,6 @@ with col2:
     else:
         st.error("❌ IEEE (2.30): Tidak Memenuhi")
 
-st.info("""
-**Mengapa hasilnya sekarang cocok (14.02 & 11.03)?**
-Aplikasi kini menghitung Total Sistem dari **jumlah total gangguan dibagi total pelanggan** secara langsung, baru memotong desimal di akhir.
-Ini berbeda dengan sebelumnya yang menjumlahkan angka-angka di tabel yang sudah terpotong (yang menghasilkan 14.00).
-Metode langsung ini lebih presisi dan sesuai dengan angka kesimpulan di jurnal.
-""")
 
 # --- 6. ANGGOTA KELOMPOK ---
 st.markdown("---")
