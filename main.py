@@ -1,135 +1,127 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
-st.title("⚡ Simulasi Pengaruh Penggantian Konduktor 20 kV terhadap Drop Tegangan dan Efisiensi Energi")
-st.write("Berdasarkan Jurnal: *Analisis Pengaruh Penggantian Konduktor pada SUTM 20 kV terhadap Drop Tegangan di PT. PLN UP3 Bangkinang*")
+# Konfigurasi Halaman
+st.set_page_config(page_title="Kalkulator SAIFI & SAIDI", layout="wide")
 
-st.sidebar.header("🔧 Input Parameter")
+st.title("⚡ Analisis Keandalan: SAIFI & SAIDI")
+st.markdown("""
+Aplikasi ini berfokus menghitung indeks **SAIFI** (Frekuensi Pemadaman) dan **SAIDI** (Durasi Pemadaman) 
+berdasarkan data penyulang, serta mengevaluasinya terhadap standar **SPLN** dan **IEEE**.
+Data awal diambil dari studi kasus Rayon Sedayu (2017).
+""")
 
-# Input umum
-I = st.sidebar.number_input("Arus Beban (A)", 50, 1000, 200)
-L = st.sidebar.number_input("Panjang Saluran (km)", 1.0, 50.0, 15.0)
-V_nominal = 20.0  # kV nominal
+# --- SIDEBAR: INPUT DATA ---
+st.sidebar.header("🎛️ Input Data Gangguan")
+st.sidebar.write("Sesuaikan data di bawah ini:")
 
-st.sidebar.markdown("### Sebelum Penggantian")
-# Tambahkan format="%.3f" dan step=0.001
-R_before = st.sidebar.number_input(
-    "Resistansi Konduktor Sebelum (Ω/km)", 
-    min_value=0.001, 
-    max_value=1.000, 
-    value=0.206, 
-    step=0.001,       # Agar tombol naik/turun 0.001
-    format="%.3f"     # Agar tampilan support 3 angka desimal
-)
-
-st.sidebar.markdown("### Setelah Penggantian")
-# Tambahkan format="%.3f" dan step=0.001
-R_after = st.sidebar.number_input(
-    "Resistansi Konduktor Sesudah (Ω/km)", 
-    min_value=0.001, 
-    max_value=1.000, 
-    value=0.135, 
-    step=0.001,       # Agar tombol naik/turun 0.001
-    format="%.3f"     # Agar tampilan support 3 angka desimal
-)
-
-# Data pelanggan & gangguan
-st.sidebar.markdown("### Data Pelanggan & Gangguan")
-N_total = st.sidebar.number_input("Total Pelanggan", 1, 50000, 10000)
-U1 = st.sidebar.number_input("Durasi Gangguan 1 (jam)", 0.0, 10.0, 2.0)
-N1 = st.sidebar.number_input("Jumlah Pelanggan Terdampak Gangguan 1", 0, 10000, 1000)
-U2 = st.sidebar.number_input("Durasi Gangguan 2 (jam)", 0.0, 10.0, 1.5)
-N2 = st.sidebar.number_input("Jumlah Pelanggan Terdampak Gangguan 2", 0, 10000, 2000)
-U3 = st.sidebar.number_input("Durasi Gangguan 3 (jam)", 0.0, 10.0, 3.0)
-N3 = st.sidebar.number_input("Jumlah Pelanggan Terdampak Gangguan 3", 0, 10000, 1500)
-
-# Fungsi perhitungan
-def drop_voltage(I, R, L):
-    return 2 * I * R * L / 1000  # kV
-
-def power_loss(I, R, L):
-    return (I**2 * R * L )/100
-    
-
-def reliability_index(U1, N1, U2, N2, U3, N3, N_total):
-    SAIDI = ((U1*N1 + U2*N2 + U3*N3) / N_total)*60
-    SAIFI = ((N1 + N2 + N3) / N_total)
-    return SAIDI, SAIFI
-
-# Hitung hasil
-Vdrop_before = drop_voltage(I, R_before, L)
-Ploss_before = power_loss(I, R_before, L)
-Vdrop_after = drop_voltage(I, R_after, L)
-Ploss_after = power_loss(I, R_after, L)
-SAIDI_before, SAIFI_before = reliability_index(U1, N1, U2, N2, U3, N3, N_total)
-
-# Asumsi setelah penggantian gangguan menurun 40%
-SAIDI_after = SAIDI_before * 0.4
-SAIFI_after = SAIFI_before * 0.6
-
-# Tabel hasil
-data = {
-    "Parameter": ["Drop Tegangan (kV)", "Rugi Daya (kW)", "SAIDI (menit/pelanggan)", "SAIFI (frekuensi/pelanggan)"],
-    "Sebelum": [Vdrop_before, Ploss_before, SAIDI_before, SAIFI_before],
-    "Sesudah": [Vdrop_after, Ploss_after, SAIDI_after, SAIFI_after],
+# Data Awal (Sesuai Naskah Publikasi Tabel 4.5 & 4.9)
+default_data = {
+    "Penyulang": ["GDN 01", "GDN 02", "GDN 03", "GDN 04", "GDN 05", "WBN 06", "BNL 08"],
+    "Jumlah Pelanggan (Ni)": [20561, 16329, 14795, 17352, 10204, 13424, 14363],
+    "Frekuensi Gangguan (λi)": [19, 6, 15, 22, 17, 9, 8],
+    "Durasi Total (Ui) [Jam]": [15.77, 5.72, 13.58, 38.25, 5.2, 0.12, 6.48] 
 }
-df = pd.DataFrame(data)
 
-st.subheader("📊 Hasil Simulasi")
-st.dataframe(df.style.format(
-    subset=["Sebelum", "Sesudah"], 
-    formatter=lambda x: "{:.3f}".format(x).rstrip('0').rstrip('.')
-))
+df = pd.DataFrame(default_data)
 
-# Tambahkan penjelasan SAIDI dan SAIFI
-st.markdown("""
-**Keterangan:**
-- **SAIDI (System Average Interruption Duration Index)** adalah **rata-rata durasi gangguan listrik per pelanggan** dalam satuan jam/pelanggan.  
-  Semakin kecil nilainya, semakin andal sistem distribusi karena pelanggan mengalami gangguan lebih singkat.
-- **SAIFI (System Average Interruption Frequency Index)** adalah **rata-rata frekuensi gangguan listrik per pelanggan** dalam satuan kali/pelanggan.  
-  Nilai SAIFI yang kecil menandakan sistem lebih stabil dan pelanggan lebih jarang mengalami pemadaman listrik.
-""")
+# Widget Editor Data
+edited_df = st.sidebar.data_editor(df, num_rows="dynamic")
 
-# Grafik perbandingan
-df_plot = df.set_index("Parameter")
+# --- BAGIAN 1: PERHITUNGAN INDEKS ---
+st.header("1. Hasil Perhitungan Sistem")
 
-# Ambil warna tema dengan fallback aman
-bg_color = st.get_option("theme.backgroundColor") or "#0E1117"
-text_color = st.get_option("theme.textColor") or "#FAFAFA"
+# Rumus Total Pelanggan
+total_pelanggan = edited_df["Jumlah Pelanggan (Ni)"].sum()
 
-fig, ax = plt.subplots(facecolor=bg_color)
-ax.set_facecolor(bg_color)
+# Kalkulasi Kontribusi per Penyulang
+metrics_df = edited_df.copy()
+metrics_df["Ni x λi"] = metrics_df["Jumlah Pelanggan (Ni)"] * metrics_df["Frekuensi Gangguan (λi)"]
+metrics_df["Ni x Ui"] = metrics_df["Jumlah Pelanggan (Ni)"] * metrics_df["Durasi Total (Ui) [Jam]"]
 
-df_plot.plot(kind='bar', ax=ax, color=["tomato", "skyblue"])
+# Perhitungan SAIFI & SAIDI Sistem (Rumus Total)
+# SAIFI = Total (Ni * λi) / Total Pelanggan
+# SAIDI = Total (Ni * Ui) / Total Pelanggan
+saifi_sistem = metrics_df["Ni x λi"].sum() / total_pelanggan
+saidi_sistem = metrics_df["Ni x Ui"].sum() / total_pelanggan
 
-ax.set_title("Perbandingan Sebelum & Sesudah Penggantian Konduktor", color=text_color)
-ax.set_ylabel("Nilai", color=text_color)
-ax.tick_params(colors=text_color)
-ax.yaxis.label.set_color(text_color)
-ax.xaxis.label.set_color(text_color)
+# Tampilkan Metrics Utama
+col1, col2, col3 = st.columns(3)
+col1.metric("Total Pelanggan", f"{total_pelanggan:,.0f}")
+col2.metric("SAIFI Sistem", f"{saifi_sistem:.2f}", "Kali/Pelanggan/Tahun")
+col3.metric("SAIDI Sistem", f"{saidi_sistem:.2f}", "Jam/Pelanggan/Tahun")
 
-st.pyplot(fig)
+st.markdown("---")
 
+# --- BAGIAN 2: EVALUASI STANDAR ---
+st.header("2. Evaluasi Terhadap Standar")
 
-# Interpretasi hasil
-improvement_v = (Vdrop_before - Vdrop_after) / Vdrop_before * 100
-improvement_p = (Ploss_before - Ploss_after) / Ploss_before * 100
+col_spln, col_ieee = st.columns(2)
 
-st.markdown(f"""
-### 📈 Interpretasi:
-- Penurunan **drop tegangan** sebesar **{improvement_v:.1f}%**
-- Penurunan **rugi daya** sebesar **{improvement_p:.1f}%**
-- Peningkatan efisiensi distribusi dan kualitas tegangan pada ujung saluran
-""")
+# Standar SPLN 68-2: 1986 [Sumber: Dokumen Hal 6 & 8]
+with col_spln:
+    st.subheader("Standar SPLN 68-2: 1986")
+    st.caption("Target: SAIFI ≤ 3.2 | SAIDI ≤ 21.09")
+    
+    # Logika Status
+    status_saifi_spln = "✅ MEMENUHI" if saifi_sistem <= 3.2 else "❌ TIDAK MEMENUHI"
+    status_saidi_spln = "✅ MEMENUHI" if saidi_sistem <= 21.09 else "❌ TIDAK MEMENUHI"
+    
+    st.write(f"**SAIFI:** {status_saifi_spln} (Batas: 3.2)")
+    st.write(f"**SAIDI:** {status_saidi_spln} (Batas: 21.09)")
 
-# ----------------------------------------------------------------
-# Footer: identitas kelompok
-# ----------------------------------------------------------------
-st.markdown("""
----
-### 👥 **By Kelompok Distribusi 20kV**
-- **Raka Khairan Taqi Aksara**  
-- **Kaisya Ruby Edya**  
-- **Nita Nirmala**
-""")
+# Standar IEEE Std 1366-2003 [Sumber: Dokumen Hal 7 & 9]
+with col_ieee:
+    st.subheader("Standar IEEE Std 1366-2003")
+    st.caption("Target: SAIFI ≤ 1.45 | SAIDI ≤ 2.30")
+    
+    # Logika Status
+    status_saifi_ieee = "✅ MEMENUHI" if saifi_sistem <= 1.45 else "❌ TIDAK MEMENUHI"
+    status_saidi_ieee = "✅ MEMENUHI" if saidi_sistem <= 2.30 else "❌ TIDAK MEMENUHI"
+    
+    st.write(f"**SAIFI:** {status_saifi_ieee} (Batas: 1.45)")
+    st.write(f"**SAIDI:** {status_saidi_ieee} (Batas: 2.30)")
+
+# --- BAGIAN 3: VISUALISASI ---
+st.subheader("Grafik Perbandingan")
+
+tab1, tab2 = st.tabs(["Grafik SAIFI", "Grafik SAIDI"])
+
+with tab1:
+    fig_saifi = go.Figure()
+    # Bar Nilai Aktual
+    fig_saifi.add_trace(go.Bar(
+        x=["Sistem Aktual"], 
+        y=[saifi_sistem], 
+        name="Nilai Aktual", 
+        marker_color='#3498db',
+        text=[f"{saifi_sistem:.2f}"],
+        textposition='auto'
+    ))
+    # Garis Batas SPLN
+    fig_saifi.add_hline(y=3.2, line_dash="dash", line_color="green", annotation_text="Batas SPLN (3.2)")
+    # Garis Batas IEEE
+    fig_saifi.add_hline(y=1.45, line_dash="dash", line_color="red", annotation_text="Batas IEEE (1.45)")
+    
+    fig_saifi.update_layout(title="Posisi SAIFI Aktual vs Standar", yaxis_title="Kali/Tahun")
+    st.plotly_chart(fig_saifi, use_container_width=True)
+
+with tab2:
+    fig_saidi = go.Figure()
+    # Bar Nilai Aktual
+    fig_saidi.add_trace(go.Bar(
+        x=["Sistem Aktual"], 
+        y=[saidi_sistem], 
+        name="Nilai Aktual", 
+        marker_color='#e67e22',
+        text=[f"{saidi_sistem:.2f}"],
+        textposition='auto'
+    ))
+    # Garis Batas SPLN
+    fig_saidi.add_hline(y=21.09, line_dash="dash", line_color="green", annotation_text="Batas SPLN (21.09)")
+    # Garis Batas IEEE
+    fig_saidi.add_hline(y=2.30, line_dash="dash", line_color="red", annotation_text="Batas IEEE (2.30)")
+    
+    fig_saidi.update_layout(title="Posisi SAIDI Aktual vs Standar", yaxis_title="Jam/Tahun")
+    st.plotly_chart(fig_saidi, use_container_width=True)
