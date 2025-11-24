@@ -37,7 +37,7 @@ def power_loss(I, R, L):
     
 
 def reliability_index(U1, N1, U2, N2, U3, N3, N_total):
-    SAIDI = (U1*N1 + U2*N2 + U3*N3) / N_total
+    SAIDI = ((U1*N1 + U2*N2 + U3*N3) / N_total)/60
     SAIFI = ((N1 + N2 + N3) / N_total)/60
     return SAIDI, SAIFI
 
