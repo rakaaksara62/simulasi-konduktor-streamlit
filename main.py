@@ -70,7 +70,7 @@ SAIFI_after = SAIFI_before * 0.6
 
 # Tabel hasil
 data = {
-    "Parameter": ["Drop Tegangan (kV)", "Rugi Daya (kW)", "SAIDI (jam/pelanggan)", "SAIFI (frekuensi/pelanggan)"],
+    "Parameter": ["Drop Tegangan (kV)", "Rugi Daya (kW)", "SAIDI (menit/pelanggan)", "SAIFI (frekuensi/pelanggan)"],
     "Sebelum": [Vdrop_before, Ploss_before, SAIDI_before, SAIFI_before],
     "Sesudah": [Vdrop_after, Ploss_after, SAIDI_after, SAIFI_after],
 }
