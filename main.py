@@ -170,3 +170,22 @@ Aplikasi kini menghitung Total Sistem dari **jumlah total gangguan dibagi total 
 Ini berbeda dengan sebelumnya yang menjumlahkan angka-angka di tabel yang sudah terpotong (yang menghasilkan 14.00).
 Metode langsung ini lebih presisi dan sesuai dengan angka kesimpulan di jurnal.
 """)
+
+# --- 6. ANGGOTA KELOMPOK ---
+st.markdown("---")
+st.subheader("Anggota Kelompok")
+
+# Membuat 3 kolom untuk tampilan menyamping (side-by-side)
+col_mhs1, col_mhs2, col_mhs3 = st.columns(3)
+
+with col_mhs1:
+    st.markdown("**Raka Khairan Taqi Aksara**")
+    st.caption("NIM. 3332250139")
+
+with col_mhs2:
+    st.markdown("**Kaisya Ruby Edya**")
+    st.caption("NIM. 3332250xxx")
+
+with col_mhs3:
+    st.markdown("**Nita Nirmala**")
+    st.caption("NIM. 3332250xxx")
