@@ -15,17 +15,16 @@ def potong_desimal(nilai):
         return f"{kepala}.{ekor_fix}"
     return f"{s}.00"
 
-st.set_page_config(page_title="Kalkulator SAIFI SAIDI Fleksibel", layout="wide")
+st.set_page_config(page_title="Kalkulator SAIFI SAIDI Presisi", layout="wide")
 
-st.title("🧮 Kalkulator SAIFI & SAIDI (Fleksibel)")
+st.title("🧮 Kalkulator SAIFI & SAIDI (Presisi Jurnal)")
 st.markdown("""
-Aplikasi ini memungkinkan Anda memilih metode input:
-1. **Sesuai Rumus Jurnal**: Input desimal langsung (Contoh: 15 jam 46 menit ditulis `15.46`).
-2. **Input Jam & Menit**: Konversi matematis yang benar (`Jam + Menit/60`).
+Aplikasi ini menggunakan metode **Hitung Total dari Data Mentah** untuk mendapatkan angka yang persis sama dengan kesimpulan Jurnal (14,02 & 11,03),
+sambil tetap menampilkan rincian per gardu tanpa pembulatan.
 """)
 
-# --- 1. PILIH METODE ---
-st.sidebar.header("⚙️ Pengaturan")
+# --- 1. PILIH METODE INPUT ---
+st.sidebar.header("⚙️ Pengaturan Input")
 metode_input = st.sidebar.radio(
     "Pilih Metode Input Durasi:",
     ["Sesuai Rumus Jurnal (Desimal)", "Input Jam & Menit (Matematis)"]
@@ -41,50 +40,44 @@ data_base = {
 }
 
 if metode_input == "Sesuai Rumus Jurnal (Desimal)":
-    st.sidebar.info("Mode ini menggunakan angka desimal seperti yang tertulis di rumus halaman 7 jurnal.")
-    # Data Durasi (Desimal) - DISESUAIKAN DENGAN PERMINTAAN USER
-    # GDN 04 = 15.38 (Sesuai User)
-    # GDN 05 = 12.5 (Sesuai User)
+    st.sidebar.info("Menggunakan durasi desimal sesuai halaman 7 jurnal (GDN 04 = 15.38, GDN 05 = 12.5).")
     data_durasi = {
         "Durasi (Ui)": [15.46, 5.43, 13.25, 15.38, 12.5, 7.00, 6.29]
     }
-    # Gabungkan
     df_input = pd.DataFrame({**data_base, **data_durasi})
-    
-    # Editor
     df_edit = st.sidebar.data_editor(df_input, num_rows="dynamic")
     
-    # Kolom yang dipakai untuk hitung
+    # Kolom untuk hitung
     df_edit["Durasi Hitung"] = df_edit["Durasi (Ui)"]
     df_edit["Label Durasi"] = df_edit["Durasi (Ui)"].astype(str)
 
 else:
-    st.sidebar.info("Mode ini menghitung durasi secara matematis (Menit dibagi 60).")
-    # Data Jam & Menit (Sesuai Tabel 4.4 Fisik)
-    # GDN 04 di tabel fisik tertulis 38 jam 15 menit, tapi user bisa ubah sendiri jika mau
+    st.sidebar.info("Menggunakan konversi matematis (Menit/60).")
     data_waktu = {
         "Jam": [15, 5, 13, 38, 5, 7, 6],
         "Menit": [46, 43, 35, 15, 12, 0, 29]
     }
     df_input = pd.DataFrame({**data_base, **data_waktu})
-    
-    # Editor
     df_edit = st.sidebar.data_editor(df_input, num_rows="dynamic")
     
     # Hitung Durasi Matematis
     df_edit["Durasi Hitung"] = df_edit["Jam"] + (df_edit["Menit"] / 60)
     df_edit["Label Durasi"] = df_edit["Jam"].astype(str) + "j " + df_edit["Menit"].astype(str) + "m"
 
-
 total_pelanggan = df_edit["Pelanggan (Ni)"].sum()
 
-# --- 3. PROSES PERHITUNGAN (TRUNCATE 2 DIGIT) ---
+# --- 3. PROSES PERHITUNGAN ---
 
 hasil_rows = []
 
-# Variabel akumulasi (manual sum dari hasil potong)
-saifi_display_sum = 0.0
-saidi_display_sum = 0.0
+# Variabel Akumulasi MENTAH (Float Presisi Tinggi)
+# Kita menjumlahkan pembilang (Ni * λi) dulu baru dibagi total pelanggan di akhir
+total_pembilang_saifi = 0
+total_pembilang_saidi = 0
+
+# Variabel Akumulasi DISPLAY (Untuk cek penjumlahan tabel)
+sum_tabel_saifi = 0
+sum_tabel_saidi = 0
 
 for index, row in df_edit.iterrows():
     nama = row["Penyulang"]
@@ -93,17 +86,25 @@ for index, row in df_edit.iterrows():
     ui = row["Durasi Hitung"]
     label_durasi = row["Label Durasi"]
     
-    # Rumus Kontribusi: (Ni * Nilai) / Total Pelanggan
-    kontribusi_saifi_raw = (ni * li) / total_pelanggan
-    kontribusi_saidi_raw = (ni * ui) / total_pelanggan
+    # Hitung Pembilang Mentah
+    pembilang_saifi = ni * li
+    pembilang_saidi = ni * ui
     
-    # Potong Desimal (String Manipulation)
-    saifi_str = potong_desimal(kontribusi_saifi_raw)
-    saidi_str = potong_desimal(kontribusi_saidi_raw)
+    # Tambahkan ke Total Mentah Sistem
+    total_pembilang_saifi += pembilang_saifi
+    total_pembilang_saidi += pembilang_saidi
     
-    # Akumulasi untuk Total
-    saifi_display_sum += float(saifi_str)
-    saidi_display_sum += float(saidi_str)
+    # Hitung Kontribusi Individu (Untuk Tabel)
+    kontribusi_saifi = pembilang_saifi / total_pelanggan
+    kontribusi_saidi = pembilang_saidi / total_pelanggan
+    
+    # Potong Desimal untuk Tampilan Tabel
+    saifi_str = potong_desimal(kontribusi_saifi)
+    saidi_str = potong_desimal(kontribusi_saidi)
+    
+    # Akumulasi Tabel (Hanya untuk perbandingan)
+    sum_tabel_saifi += float(saifi_str)
+    sum_tabel_saidi += float(saidi_str)
     
     hasil_rows.append({
         "Penyulang": nama,
@@ -116,46 +117,56 @@ for index, row in df_edit.iterrows():
 
 df_hasil = pd.DataFrame(hasil_rows)
 
-# --- 4. TAMPILAN TABEL ---
-st.subheader(f"1. Rincian Perhitungan ({metode_input})")
+# --- 4. HITUNG TOTAL SISTEM DARI DATA MENTAH ---
+# Rumus: (Total Frekuensi * Pelanggan) / Total Pelanggan
+# Ini menghindari error akibat pemotongan desimal di setiap baris
+final_saifi_raw = total_pembilang_saifi / total_pelanggan
+final_saidi_raw = total_pembilang_saidi / total_pelanggan
+
+# Potong hasil akhir (Truncate)
+final_saifi_display = potong_desimal(final_saifi_raw)
+final_saidi_display = potong_desimal(final_saidi_raw)
+
+# --- 5. TAMPILAN ---
+
+st.subheader("1. Rincian Per Gardu (Dipotong)")
 st.table(df_hasil)
+st.caption(f"**Info:** Jika Anda menjumlahkan kolom tabel di atas secara manual, hasilnya adalah **{sum_tabel_saifi:.2f}** dan **{sum_tabel_saidi:.2f}**. Angka ini kurang akurat karena akumulasi pemotongan desimal.")
 
-# --- 5. HASIL TOTAL & EVALUASI ---
-st.subheader("2. Total Sistem")
+st.markdown("---")
 
+st.subheader("2. Total Sistem (Akurat Sesuai Jurnal)")
 col1, col2 = st.columns(2)
 
-# Format tampilan total (2 desimal)
-total_saifi_str = f"{saifi_display_sum:.2f}"
-total_saidi_str = f"{saidi_display_sum:.2f}"
-
 with col1:
-    st.metric("Total SAIFI", f"{total_saifi_str}", "Kali/Plg/Thn")
-    # Evaluasi SAIFI
-    if saifi_display_sum <= 3.2:
+    st.metric("Total SAIFI", f"{final_saifi_display}", "Jurnal: 14.02")
+    
+    if float(final_saifi_display) <= 3.2:
         st.success("✅ SPLN (3.2): Memenuhi")
     else:
         st.error("❌ SPLN (3.2): Tidak Memenuhi")
         
-    if saifi_display_sum <= 1.45:
+    if float(final_saifi_display) <= 1.45:
         st.success("✅ IEEE (1.45): Memenuhi")
     else:
         st.error("❌ IEEE (1.45): Tidak Memenuhi")
 
 with col2:
-    st.metric("Total SAIDI", f"{total_saidi_str}", "Jam/Plg/Thn")
-    # Evaluasi SAIDI
-    if saidi_display_sum <= 21.09:
+    st.metric("Total SAIDI", f"{final_saidi_display}", "Jurnal: 11.03")
+    
+    if float(final_saidi_display) <= 21.09:
         st.success("✅ SPLN (21.09): Memenuhi")
     else:
         st.error("❌ SPLN (21.09): Tidak Memenuhi")
         
-    if saidi_display_sum <= 2.30:
+    if float(final_saidi_display) <= 2.30:
         st.success("✅ IEEE (2.30): Memenuhi")
     else:
         st.error("❌ IEEE (2.30): Tidak Memenuhi")
 
-st.caption("""
-**Catatan:** * **Mode Sesuai Rumus**: Menggunakan input manual (GDN 04 = 15.38, GDN 05 = 12.5) dan pemotongan desimal agar hasil cocok dengan jurnal.
-* **Mode Jam & Menit**: Menggunakan konversi waktu yang matematis. Hasil mungkin berbeda dengan jurnal jika data asli jurnal mengandung kesalahan konversi.
+st.info("""
+**Mengapa hasilnya sekarang cocok (14.02 & 11.03)?**
+Aplikasi kini menghitung Total Sistem dari **jumlah total gangguan dibagi total pelanggan** secara langsung, baru memotong desimal di akhir.
+Ini berbeda dengan sebelumnya yang menjumlahkan angka-angka di tabel yang sudah terpotong (yang menghasilkan 14.00).
+Metode langsung ini lebih presisi dan sesuai dengan angka kesimpulan di jurnal.
 """)
