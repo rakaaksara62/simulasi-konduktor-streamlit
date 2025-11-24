@@ -33,7 +33,7 @@ def drop_voltage(I, R, L):
     return 2 * I * R * L / 1000  # kV
 
 def power_loss(I, R, L):
-    return (I**2 * R * L )/1000
+    return (I**2 * R * L )/100
     
 
 def reliability_index(U1, N1, U2, N2, U3, N3, N_total):
