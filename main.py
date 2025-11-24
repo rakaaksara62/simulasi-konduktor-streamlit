@@ -61,7 +61,10 @@ data = {
 df = pd.DataFrame(data)
 
 st.subheader("📊 Hasil Simulasi")
-st.dataframe(df.style.format(subset=["Sebelum", "Sesudah"], formatter="{:.3f}"))
+st.dataframe(df.style.format(
+    subset=["Sebelum", "Sesudah"], 
+    formatter=lambda x: "{:.3f}".format(x).rstrip('0').rstrip('.')
+))
 
 # Tambahkan penjelasan SAIDI dan SAIFI
 st.markdown("""
