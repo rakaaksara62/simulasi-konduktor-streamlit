@@ -1,127 +1,112 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.express as px
 
-# Konfigurasi Halaman
-st.set_page_config(page_title="Kalkulator SAIFI & SAIDI", layout="wide")
+st.set_page_config(page_title="Rincian SAIFI SAIDI per Penyulang", layout="wide")
 
-st.title("⚡ Analisis Keandalan: SAIFI & SAIDI")
+st.title("📊 Rincian Perhitungan SAIFI & SAIDI Per Penyulang")
 st.markdown("""
-Aplikasi ini berfokus menghitung indeks **SAIFI** (Frekuensi Pemadaman) dan **SAIDI** (Durasi Pemadaman) 
-berdasarkan data penyulang, serta mengevaluasinya terhadap standar **SPLN** dan **IEEE**.
-Data awal diambil dari studi kasus Rayon Sedayu (2017).
+Aplikasi ini membedah perhitungan keandalan per gardu induk (penyulang) untuk mencocokkan hasil 
+dengan Naskah Publikasi.
 """)
 
-# --- SIDEBAR: INPUT DATA ---
-st.sidebar.header("🎛️ Input Data Gangguan")
-st.sidebar.write("Sesuaikan data di bawah ini:")
+# --- 1. PENGATURAN INPUT DATA ---
+st.sidebar.header("⚙️ Input Data & Metode")
 
-# Data Awal (Sesuai Naskah Publikasi Tabel 4.5 & 4.9)
-default_data = {
+# Opsi Metode Hitung Waktu
+metode_hitung = st.sidebar.radio(
+    "Pilih Metode Konversi Waktu (Untuk SAIDI):",
+    ("Matematis Benar (Menit ÷ 60)", "Replikasi Jurnal (Menit jadi Koma)"),
+    help="Jurnal menggunakan format '15.46' untuk 15 jam 46 menit, padahal seharusnya 15 + (46/60) jam."
+)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📝 Edit Data Penyulang")
+
+# Data Persis dari Tabel 4.5 [cite: 159] dan Tabel 4.4 [cite: 140]
+data_awal = {
     "Penyulang": ["GDN 01", "GDN 02", "GDN 03", "GDN 04", "GDN 05", "WBN 06", "BNL 08"],
-    "Jumlah Pelanggan (Ni)": [20561, 16329, 14795, 17352, 10204, 13424, 14363],
-    "Frekuensi Gangguan (λi)": [19, 6, 15, 22, 17, 9, 8],
-    "Durasi Total (Ui) [Jam]": [15.77, 5.72, 13.58, 38.25, 5.2, 0.12, 6.48] 
+    "Pelanggan (N)": [20561, 16329, 14795, 17352, 10204, 13424, 14363],
+    "Gangguan (Kali)": [19, 6, 15, 22, 17, 9, 8],
+    "Durasi (Jam)": [15, 5, 13, 38, 5, 0, 6],    # Dari kolom Jam Tabel 4.4
+    "Durasi (Menit)": [46, 43, 35, 15, 12, 7, 29] # Dari kolom Menit Tabel 4.4
 }
 
-df = pd.DataFrame(default_data)
+df_input = pd.DataFrame(data_awal)
+df_edit = st.sidebar.data_editor(df_input, num_rows="dynamic")
 
-# Widget Editor Data
-edited_df = st.sidebar.data_editor(df, num_rows="dynamic")
+# Hitung Total Pelanggan Sistem
+total_pelanggan = df_edit["Pelanggan (N)"].sum()
 
-# --- BAGIAN 1: PERHITUNGAN INDEKS ---
-st.header("1. Hasil Perhitungan Sistem")
+# --- 2. PROSES PERHITUNGAN ---
 
-# Rumus Total Pelanggan
-total_pelanggan = edited_df["Jumlah Pelanggan (Ni)"].sum()
+# A. Hitung Durasi dalam Jam (Desimal)
+if metode_hitung == "Matematis Benar (Menit ÷ 60)":
+    # 46 menit = 0.76 jam
+    df_edit["Durasi Desimal (Jam)"] = df_edit["Durasi (Jam)"] + (df_edit["Durasi (Menit)"] / 60)
+else:
+    # Mode Jurnal: 46 menit = .46 (Sesuai rumus di halaman 7 )
+    df_edit["Durasi Desimal (Jam)"] = df_edit["Durasi (Jam)"] + (df_edit["Durasi (Menit)"] / 100)
 
-# Kalkulasi Kontribusi per Penyulang
-metrics_df = edited_df.copy()
-metrics_df["Ni x λi"] = metrics_df["Jumlah Pelanggan (Ni)"] * metrics_df["Frekuensi Gangguan (λi)"]
-metrics_df["Ni x Ui"] = metrics_df["Jumlah Pelanggan (Ni)"] * metrics_df["Durasi Total (Ui) [Jam]"]
+# B. Hitung Kontribusi SAIFI per Penyulang
+# Rumus Jurnal Hal 6[cite: 170]: (Frekuensi x PelangganPenyulang) / TotalPelangganSistem
+df_edit["SAIFI (Kontribusi)"] = (df_edit["Gangguan (Kali)"] * df_edit["Pelanggan (N)"]) / total_pelanggan
 
-# Perhitungan SAIFI & SAIDI Sistem (Rumus Total)
-# SAIFI = Total (Ni * λi) / Total Pelanggan
-# SAIDI = Total (Ni * Ui) / Total Pelanggan
-saifi_sistem = metrics_df["Ni x λi"].sum() / total_pelanggan
-saidi_sistem = metrics_df["Ni x Ui"].sum() / total_pelanggan
+# C. Hitung Kontribusi SAIDI per Penyulang
+# Rumus Jurnal Hal 7: (Durasi x PelangganPenyulang) / TotalPelangganSistem
+df_edit["SAIDI (Kontribusi)"] = (df_edit["Durasi Desimal (Jam)"] * df_edit["Pelanggan (N)"]) / total_pelanggan
 
-# Tampilkan Metrics Utama
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Pelanggan", f"{total_pelanggan:,.0f}")
-col2.metric("SAIFI Sistem", f"{saifi_sistem:.2f}", "Kali/Pelanggan/Tahun")
-col3.metric("SAIDI Sistem", f"{saidi_sistem:.2f}", "Jam/Pelanggan/Tahun")
+# --- 3. MENAMPILKAN HASIL RINCIAN ---
 
-st.markdown("---")
+st.subheader(f"1. Tabel Rincian Perhitungan (Total Pelanggan: {total_pelanggan:,.0f})")
+st.markdown("Tabel ini merincikan nilai indeks yang disumbangkan oleh setiap penyulang, sesuai **Tabel 4.6** [cite: 217] dan **Tabel 4.10** [cite: 266] di jurnal.")
 
-# --- BAGIAN 2: EVALUASI STANDAR ---
-st.header("2. Evaluasi Terhadap Standar")
+# Format tampilan tabel agar rapi (2 angka di belakang koma)
+tabel_hasil = df_edit[["Penyulang", "Pelanggan (N)", "Gangguan (Kali)", "Durasi Desimal (Jam)", "SAIFI (Kontribusi)", "SAIDI (Kontribusi)"]].copy()
 
-col_spln, col_ieee = st.columns(2)
+# Tampilkan Tabel
+st.dataframe(
+    tabel_hasil.style.format({
+        "Pelanggan (N)": "{:,.0f}",
+        "Durasi Desimal (Jam)": "{:.4f}",
+        "SAIFI (Kontribusi)": "{:.2f}",
+        "SAIDI (Kontribusi)": "{:.2f}"
+    }), 
+    use_container_width=True
+)
 
-# Standar SPLN 68-2: 1986 [Sumber: Dokumen Hal 6 & 8]
-with col_spln:
-    st.subheader("Standar SPLN 68-2: 1986")
-    st.caption("Target: SAIFI ≤ 3.2 | SAIDI ≤ 21.09")
-    
-    # Logika Status
-    status_saifi_spln = "✅ MEMENUHI" if saifi_sistem <= 3.2 else "❌ TIDAK MEMENUHI"
-    status_saidi_spln = "✅ MEMENUHI" if saidi_sistem <= 21.09 else "❌ TIDAK MEMENUHI"
-    
-    st.write(f"**SAIFI:** {status_saifi_spln} (Batas: 3.2)")
-    st.write(f"**SAIDI:** {status_saidi_spln} (Batas: 21.09)")
+# --- 4. HASIL AKHIR & PERBANDINGAN ---
 
-# Standar IEEE Std 1366-2003 [Sumber: Dokumen Hal 7 & 9]
-with col_ieee:
-    st.subheader("Standar IEEE Std 1366-2003")
-    st.caption("Target: SAIFI ≤ 1.45 | SAIDI ≤ 2.30")
-    
-    # Logika Status
-    status_saifi_ieee = "✅ MEMENUHI" if saifi_sistem <= 1.45 else "❌ TIDAK MEMENUHI"
-    status_saidi_ieee = "✅ MEMENUHI" if saidi_sistem <= 2.30 else "❌ TIDAK MEMENUHI"
-    
-    st.write(f"**SAIFI:** {status_saifi_ieee} (Batas: 1.45)")
-    st.write(f"**SAIDI:** {status_saidi_ieee} (Batas: 2.30)")
+saifi_total = df_edit["SAIFI (Kontribusi)"].sum()
+saidi_total = df_edit["SAIDI (Kontribusi)"].sum()
 
-# --- BAGIAN 3: VISUALISASI ---
-st.subheader("Grafik Perbandingan")
+st.subheader("2. Hasil Total Sistem")
+col1, col2 = st.columns(2)
 
-tab1, tab2 = st.tabs(["Grafik SAIFI", "Grafik SAIDI"])
+with col1:
+    st.info(f"**SAIFI Total: {saifi_total:.2f}** kali/pelanggan/tahun")
+    if metode_hitung == "Replikasi Jurnal (Menit jadi Koma)":
+        st.caption("Hasil ini akan mendekati angka '14.02' di Tabel 4.6 jurnal[cite: 218].")
+    else:
+        st.caption("Hasil perhitungan matematis yang presisi.")
 
-with tab1:
-    fig_saifi = go.Figure()
-    # Bar Nilai Aktual
-    fig_saifi.add_trace(go.Bar(
-        x=["Sistem Aktual"], 
-        y=[saifi_sistem], 
-        name="Nilai Aktual", 
-        marker_color='#3498db',
-        text=[f"{saifi_sistem:.2f}"],
-        textposition='auto'
-    ))
-    # Garis Batas SPLN
-    fig_saifi.add_hline(y=3.2, line_dash="dash", line_color="green", annotation_text="Batas SPLN (3.2)")
-    # Garis Batas IEEE
-    fig_saifi.add_hline(y=1.45, line_dash="dash", line_color="red", annotation_text="Batas IEEE (1.45)")
-    
-    fig_saifi.update_layout(title="Posisi SAIFI Aktual vs Standar", yaxis_title="Kali/Tahun")
+with col2:
+    st.info(f"**SAIDI Total: {saidi_total:.2f}** jam/pelanggan/tahun")
+    if metode_hitung == "Replikasi Jurnal (Menit jadi Koma)":
+        st.caption("Hasil ini akan mendekati angka '11.03' di Tabel 4.10 jurnal[cite: 268].")
+    else:
+        st.caption("Perhatikan: Nilai ini lebih tinggi karena 46 menit dihitung 0,76 jam, bukan 0,46.")
+
+# --- 5. VISUALISASI KONTRIBUSI ---
+st.subheader("3. Grafik Kontribusi Penyulang")
+tab_a, tab_b = st.tabs(["Kontribusi SAIFI", "Kontribusi SAIDI"])
+
+with tab_a:
+    fig_saifi = px.bar(df_edit, x="Penyulang", y="SAIFI (Kontribusi)", 
+                       title="Penyumbang Frekuensi Pemadaman Tertinggi", text_auto='.2f')
     st.plotly_chart(fig_saifi, use_container_width=True)
 
-with tab2:
-    fig_saidi = go.Figure()
-    # Bar Nilai Aktual
-    fig_saidi.add_trace(go.Bar(
-        x=["Sistem Aktual"], 
-        y=[saidi_sistem], 
-        name="Nilai Aktual", 
-        marker_color='#e67e22',
-        text=[f"{saidi_sistem:.2f}"],
-        textposition='auto'
-    ))
-    # Garis Batas SPLN
-    fig_saidi.add_hline(y=21.09, line_dash="dash", line_color="green", annotation_text="Batas SPLN (21.09)")
-    # Garis Batas IEEE
-    fig_saidi.add_hline(y=2.30, line_dash="dash", line_color="red", annotation_text="Batas IEEE (2.30)")
-    
-    fig_saidi.update_layout(title="Posisi SAIDI Aktual vs Standar", yaxis_title="Jam/Tahun")
+with tab_b:
+    fig_saidi = px.bar(df_edit, x="Penyulang", y="SAIDI (Kontribusi)", 
+                       title="Penyumbang Durasi Pemadaman Terlama", text_auto='.2f')
     st.plotly_chart(fig_saidi, use_container_width=True)
