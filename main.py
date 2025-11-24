@@ -13,10 +13,26 @@ L = st.sidebar.number_input("Panjang Saluran (km)", 1.0, 50.0, 15.0)
 V_nominal = 20.0  # kV nominal
 
 st.sidebar.markdown("### Sebelum Penggantian")
-R_before = st.sidebar.number_input("Resistansi Konduktor Sebelum (Ω/km)", 0.01, 1.0, 0.206)
+# Tambahkan format="%.3f" dan step=0.001
+R_before = st.sidebar.number_input(
+    "Resistansi Konduktor Sebelum (Ω/km)", 
+    min_value=0.001, 
+    max_value=1.000, 
+    value=0.206, 
+    step=0.001,       # Agar tombol naik/turun 0.001
+    format="%.3f"     # Agar tampilan support 3 angka desimal
+)
 
 st.sidebar.markdown("### Setelah Penggantian")
-R_after = st.sidebar.number_input("Resistansi Konduktor Sesudah (Ω/km)", 0.01, 1.0, 0.135)
+# Tambahkan format="%.3f" dan step=0.001
+R_after = st.sidebar.number_input(
+    "Resistansi Konduktor Sesudah (Ω/km)", 
+    min_value=0.001, 
+    max_value=1.000, 
+    value=0.135, 
+    step=0.001,       # Agar tombol naik/turun 0.001
+    format="%.3f"     # Agar tampilan support 3 angka desimal
+)
 
 # Data pelanggan & gangguan
 st.sidebar.markdown("### Data Pelanggan & Gangguan")
